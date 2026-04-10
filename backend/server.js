@@ -1,251 +1,336 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
-const apiRoutes = require('./routes/apiRoutes');
+const axios = require('axios');
 
 const app = express();
 
 // =============================================
-// Environment Configuration
+// Configuration
 // =============================================
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/api-performance-monitor';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || '50mb';
+const API_TIMEOUT = parseInt(process.env.API_TIMEOUT || '30000');
+
+console.log(`
+╔════════════════════════════════════════════╗
+║  API Performance Monitor Backend          ║
+║  Version: 1.0.0 (No Database)             ║
+╚════════════════════════════════════════════╝
+
+📊 Environment: ${NODE_ENV}
+🗄️  Storage: In-Memory (Session-based)
+⏱️  API Timeout: ${API_TIMEOUT}ms
+🚀 Starting on port ${PORT}...
+`);
 
 // =============================================
-// Middleware Setup
+// In-Memory Storage
+// =============================================
+const sessionData = {
+  testResults: [],
+  sessionStart: new Date(),
+  testCount: 0
+};
+
+// =============================================
+// Middleware
 // =============================================
 
-// CORS Configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    // In development, allow all origins
-    if (NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      // In production, allow all render.com domains and FRONTEND_URL
-      if (!origin || 
-          origin.includes('onrender.com') || 
-          origin === FRONTEND_URL ||
-          origin.includes('localhost')) {
-        callback(null, true);
-      } else {
-        callback(null, true); // Allow all for now - can be restricted later
-      }
-    }
-  },
-  credentials: true,
+// CORS - Allow all origins
+app.use(cors({
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-};
+}));
 
-app.use(cors(corsOptions));
-app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
-app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }));
-
-// Request logging middleware (development only)
-if (NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
-    next();
-  });
-}
-
-// =============================================
-// Database Connection
-// =============================================
-let isDBConnected = false;
-
-const connectDB = async () => {
-  const maxRetries = 3;
-  let retries = 0;
-
-  const attemptConnection = async () => {
-    try {
-      await mongoose.connect(MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-      });
-      isDBConnected = true;
-      console.log('✓ MongoDB connected successfully');
-      console.log(`  Database: ${mongoose.connection.name}`);
-      return true;
-    } catch (error) {
-      retries++;
-      if (retries < maxRetries) {
-        console.warn(`⚠ MongoDB connection attempt ${retries} failed. Retrying in 3 seconds...`);
-        console.warn(`  Error: ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        return attemptConnection();
-      } else {
-        console.warn('✗ MongoDB connection failed - Using in-memory storage as fallback');
-        console.warn('  Data will persist during this session but reset on server restart.');
-        console.warn('  To use persistent storage:');
-        console.warn('    1. Start MongoDB locally: mongod');
-        console.warn('    2. Or set MONGODB_URI to a cloud database URL');
-        console.warn(`    3. Current MONGODB_URI: ${MONGODB_URI.substring(0, 50)}...`);
-        isDBConnected = false;
-        return false;
-      }
-    }
-  };
-
-  await attemptConnection();
-};
-
-// Connect to database (non-blocking - app continues even if DB fails)
-connectDB().catch(err => console.error('Database connection setup error:', err));
-
-// Monitor connection state
-mongoose.connection.on('connected', () => {
-  isDBConnected = true;
-  console.log('✓ Mongoose connected to MongoDB');
-});
-
-mongoose.connection.on('disconnected', () => {
-  isDBConnected = false;
-  console.warn('⚠ Mongoose disconnected from MongoDB');
-});
-
-mongoose.connection.on('error', (error) => {
-  isDBConnected = false;
-  console.error('✗ MongoDB connection error:', error.message);
-});
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // =============================================
 // Routes
 // =============================================
 
-// Health check endpoint
+// Health Check
 app.get('/health', (req, res) => {
-  res.status(200).json({
+  res.json({
     success: true,
     message: 'API Performance Monitor Backend is running',
     timestamp: new Date().toISOString(),
     environment: NODE_ENV,
-    database: isDBConnected ? 'MongoDB Connected' : 'Using In-Memory Storage',
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    storage: 'In-Memory Session Storage'
   });
 });
 
+// =============================================
 // API Routes
-app.use('/api/', apiRoutes);
+// =============================================
 
+// Test API Endpoint
+app.post('/api/test', async (req, res) => {
+  try {
+    const { apiUrl, httpMethod = 'GET', requestHeaders = {}, requestBody = null } = req.body;
 
+    if (!apiUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'apiUrl is required'
+      });
+    }
+
+    const startTime = Date.now();
+    
+    try {
+      const response = await axios({
+        method: httpMethod,
+        url: apiUrl,
+        headers: requestHeaders,
+        data: requestBody,
+        timeout: API_TIMEOUT,
+        validateStatus: () => true // Accept all status codes
+      });
+
+      const responseTime = Date.now() - startTime;
+      const isSlowAPI = responseTime > 2000;
+
+      const result = {
+        _id: String(sessionData.testResults.length + 1),
+        apiUrl,
+        httpMethod,
+        responseStatus: response.status,
+        responseTime,
+        isSlowAPI,
+        timestamp: new Date(),
+        responseData: response.data
+      };
+
+      sessionData.testResults.push(result);
+      sessionData.testCount++;
+
+      res.json({
+        success: true,
+        data: result,
+        message: `API tested successfully in ${responseTime}ms`
+      });
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+
+      const result = {
+        _id: String(sessionData.testResults.length + 1),
+        apiUrl,
+        httpMethod,
+        responseStatus: 0,
+        responseTime,
+        isSlowAPI: true,
+        timestamp: new Date(),
+        error: error.message
+      };
+
+      sessionData.testResults.push(result);
+
+      res.status(400).json({
+        success: false,
+        data: result,
+        message: `API test failed: ${error.message}`
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error testing API',
+      error: error.message
+    });
+  }
+});
+
+// Get all test results
+app.get('/api/results', (req, res) => {
+  res.json({
+    success: true,
+    data: sessionData.testResults,
+    total: sessionData.testResults.length
+  });
+});
+
+// Get results for specific API
+app.get('/api/results/:apiUrl', (req, res) => {
+  const apiUrl = decodeURIComponent(req.params.apiUrl);
+  const results = sessionData.testResults.filter(r => r.apiUrl === apiUrl);
+  
+  res.json({
+    success: true,
+    data: results,
+    total: results.length
+  });
+});
+
+// Get slow APIs
+app.get('/api/slow-apis', (req, res) => {
+  const slowAPIs = sessionData.testResults.filter(r => r.isSlowAPI);
+  res.json({
+    success: true,
+    data: slowAPIs,
+    total: slowAPIs.length
+  });
+});
+
+// Get dashboard data
+app.get('/api/dashboard/data', (req, res) => {
+  const totalTests = sessionData.testResults.length;
+  const slowAPIs = sessionData.testResults.filter(r => r.isSlowAPI).length;
+  const avgResponseTime = totalTests > 0 
+    ? Math.round(sessionData.testResults.reduce((sum, r) => sum + r.responseTime, 0) / totalTests)
+    : 0;
+
+  // Group by status code
+  const statusCodes = {};
+  sessionData.testResults.forEach(r => {
+    const status = r.responseStatus || 'Error';
+    statusCodes[status] = (statusCodes[status] || 0) + 1;
+  });
+
+  res.json({
+    success: true,
+    data: {
+      totalTests,
+      slowAPIs,
+      avgResponseTime,
+      statusCodes,
+      sessionStart: sessionData.sessionStart
+    }
+  });
+});
+
+// Compare APIs
+app.post('/api/compare', (req, res) => {
+  const { apis } = req.body;
+  
+  if (!apis || !Array.isArray(apis)) {
+    return res.status(400).json({
+      success: false,
+      message: 'apis array is required'
+    });
+  }
+
+  const comparison = apis.map(apiUrl => {
+    const results = sessionData.testResults.filter(r => r.apiUrl === apiUrl);
+    const responseTimes = results.map(r => r.responseTime);
+    
+    return {
+      apiUrl,
+      totalTests: results.length,
+      avgResponseTime: results.length > 0 ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / results.length) : 0,
+      minResponseTime: results.length > 0 ? Math.min(...responseTimes) : 0,
+      maxResponseTime: results.length > 0 ? Math.max(...responseTimes) : 0,
+      slowCount: results.filter(r => r.isSlowAPI).length
+    };
+  });
+
+  res.json({
+    success: true,
+    data: comparison
+  });
+});
+
+// Delete old results
+app.post('/api/cleanup', (req, res) => {
+  const { hoursOld = 24 } = req.body;
+  const cutoffTime = new Date(Date.now() - hoursOld * 60 * 60 * 1000);
+  
+  const before = sessionData.testResults.length;
+  sessionData.testResults = sessionData.testResults.filter(r => new Date(r.timestamp) > cutoffTime);
+  const after = sessionData.testResults.length;
+  const deleted = before - after;
+
+  res.json({
+    success: true,
+    message: `Deleted ${deleted} old test results`,
+    deleted
+  });
+});
+
+// Get session metrics
+app.get('/api/session/metrics', (req, res) => {
+  const totalTests = sessionData.testResults.length;
+  const slowAPIs = sessionData.testResults.filter(r => r.isSlowAPI).length;
+  const avgResponseTime = totalTests > 0 
+    ? Math.round(sessionData.testResults.reduce((sum, r) => sum + r.responseTime, 0) / totalTests)
+    : 0;
+
+  const uniqueAPIs = [...new Set(sessionData.testResults.map(r => r.apiUrl))].length;
+
+  res.json({
+    success: true,
+    data: {
+      totalTests,
+      slowAPIs,
+      avgResponseTime,
+      uniqueAPIs,
+      sessionStart: sessionData.sessionStart,
+      uptime: process.uptime()
+    }
+  });
+});
 
 // =============================================
 // Error Handling
 // =============================================
 
-// 404 handler (must come before error handling)
+// 404 handler
 app.use((req, res) => {
+  console.log(`404: ${req.method} ${req.path}`);
   res.status(404).json({
     success: false,
     message: 'Route not found',
     path: req.path,
-    method: req.method
+    method: req.method,
+    availableRoutes: {
+      GET: [
+        '/health',
+        '/api/results',
+        '/api/results/:apiUrl',
+        '/api/slow-apis',
+        '/api/dashboard/data',
+        '/api/session/metrics'
+      ],
+      POST: [
+        '/api/test',
+        '/api/compare',
+        '/api/cleanup'
+      ]
+    }
   });
 });
 
-// Global error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
-  console.error('Error occurred:', {
-    message: err.message,
-    stack: NODE_ENV === 'development' ? err.stack : undefined,
-    path: req.path,
-    method: req.method
-  });
-
-  // CORS errors
-  if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({
-      success: false,
-      message: 'CORS policy violation',
-      error: NODE_ENV === 'development' ? err.message : 'Access denied'
-    });
-  }
-
-  // Default error response
-  res.status(err.status || 500).json({
+  console.error('Error:', err.message);
+  res.status(500).json({
     success: false,
-    message: err.message || 'Internal server error',
-    error: NODE_ENV === 'development' ? err.message : 'Server error',
-    ...(NODE_ENV === 'development' && { stack: err.stack })
+    message: 'Internal server error',
+    error: NODE_ENV === 'development' ? err.message : 'Server error'
   });
 });
 
 // =============================================
-// Server Startup
+// Start Server
 // =============================================
 
 const server = app.listen(PORT, () => {
-  console.log(`
-╔════════════════════════════════════════════╗
-║  API Performance Monitor Backend          ║
-║  Version: 1.0.0                           ║
-╚════════════════════════════════════════════╝
-
-📊 Server Information:
-  • URL: http://localhost:${PORT}
-  • Environment: ${NODE_ENV}
-  • Node Version: ${process.version}
-  
-🔗 API Endpoints:
-  • Health Check: http://localhost:${PORT}/health
-  • API Base: http://localhost:${PORT}/api
-  
-🗄️  Database:
-  • Status: ${isDBConnected ? '✓ Connected' : '⚠ Using In-Memory Storage'}
-  • URI: ${MONGODB_URI.substring(0, 50)}...
-
-💡 Tips:
-  • Open browser console for debugging
-  • Check .env file for configuration
-  • Use API documentation in README.md
-
-Ready to accept requests! 🚀
-  `);
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`📍 API Base: http://localhost:${PORT}/api`);
+  console.log(`❤️  Health: http://localhost:${PORT}/health`);
+  console.log(`\n🚀 Ready to accept requests!\n`);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('\n⛔ SIGTERM signal received: closing HTTP server');
-  server.close(async () => {
-    console.log('HTTP server closed');
-    if (isDBConnected) {
-      await mongoose.connection.close();
-      console.log('MongoDB connection closed');
-    }
+process.on('SIGTERM', () => {
+  console.log('Shutting down...');
+  server.close(() => {
+    console.log('Server closed');
     process.exit(0);
   });
-});
-
-process.on('SIGINT', async () => {
-  console.log('\n⛔ SIGINT signal received: closing HTTP server');
-  server.close(async () => {
-    console.log('HTTP server closed');
-    if (isDBConnected) {
-      await mongoose.connection.close();
-      console.log('MongoDB connection closed');
-    }
-    process.exit(0);
-  });
-});
-
-// Uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('💥 Uncaught Exception:', error);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 module.exports = app;
