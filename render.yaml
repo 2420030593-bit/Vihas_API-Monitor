@@ -12,16 +12,3 @@ services:
         value: production
       - key: PORT
         value: 5000
-
-  - type: static
-    name: api-performance-monitor-frontend
-    buildCommand: cd frontend && npm ci && npm run build
-    publishPath: frontend/build
-    routes:
-      - path: /api
-        destination: http://api-performance-monitor-backend.onrender.com/api
-      - path: /health
-        destination: http://api-performance-monitor-backend.onrender.com/health
-    envVars:
-      - key: REACT_APP_API_URL
-        value: https://api-performance-monitor-frontend.onrender.com/api
