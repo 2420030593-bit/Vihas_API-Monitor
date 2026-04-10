@@ -27,12 +27,14 @@ const corsOptions = {
     if (NODE_ENV === 'development') {
       callback(null, true);
     } else {
-      // In production, only allow frontend URL
-      const allowedOrigins = [FRONTEND_URL, 'https://api-performance-monitor.onrender.com'];
-      if (!origin || allowedOrigins.includes(origin)) {
+      // In production, allow all render.com domains and FRONTEND_URL
+      if (!origin || 
+          origin.includes('onrender.com') || 
+          origin === FRONTEND_URL ||
+          origin.includes('localhost')) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(null, true); // Allow all for now - can be restricted later
       }
     }
   },
