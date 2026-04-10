@@ -49,9 +49,9 @@ const ApiTester = ({ onTestComplete }) => {
         {
           apiUrl: formData.apiUrl.trim(),
           httpMethod: formData.httpMethod,
-          headers,
-          body,
-          slowThreshold: parseInt(formData.slowThreshold)
+          requestHeaders: headers,
+          requestBody: body,
+          disableSSLVerify: true
         }
       );
 
@@ -92,18 +92,18 @@ const ApiTester = ({ onTestComplete }) => {
           >
             <option value="">-- Choose a preset to test --</option>
             <optgroup label="🐢 Slow APIs (Latency Testing)">
-              <option value="https://httpstat.us/200?sleep=3000">1️⃣ Delayed Response (3 seconds)</option>
-              <option value="https://httpstat.us/200?sleep=5000">2️⃣ Very Slow API (5 seconds)</option>
-              <option value="https://deelay.me/4000/https://jsonplaceholder.typicode.com/posts">3️⃣ Slow JSON Response (4s delay)</option>
+              <option value="https://httpbin.org/delay/3">1️⃣ Delayed Response (3 seconds)</option>
+              <option value="https://httpbin.org/delay/5">2️⃣ Very Slow API (5 seconds)</option>
+              <option value="https://httpbin.org/delay/4">3️⃣ Slow Response (4 seconds)</option>
             </optgroup>
             <optgroup label="❌ Error Responses">
-              <option value="https://httpstat.us/400">4️⃣ Bad Request (400)</option>
-              <option value="https://httpstat.us/401">5️⃣ Unauthorized (401)</option>
-              <option value="https://httpstat.us/404">6️⃣ Not Found (404)</option>
-              <option value="https://httpstat.us/500">7️⃣ Server Error (500)</option>
+              <option value="https://httpbin.org/status/400">4️⃣ Bad Request (400)</option>
+              <option value="https://httpbin.org/status/401">5️⃣ Unauthorized (401)</option>
+              <option value="https://httpbin.org/status/404">6️⃣ Not Found (404)</option>
+              <option value="https://httpbin.org/status/500">7️⃣ Server Error (500)</option>
             </optgroup>
             <optgroup label="⚠️ Mixed Scenarios">
-              <option value="https://httpstat.us/500?sleep=4000">8️⃣ Mixed Slow + Error (500 with 4s delay)</option>
+              <option value="https://httpbin.org/delay/2">8️⃣ Slow Response (2 seconds)</option>
             </optgroup>
             <optgroup label="⚡ Fast APIs (~100-300ms)">
               <option value="https://api.github.com/users/octocat">1️⃣ GitHub User API (Fast)</option>

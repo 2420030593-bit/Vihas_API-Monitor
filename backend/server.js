@@ -70,12 +70,22 @@ app.get('/health', (req, res) => {
 // Test API Endpoint
 app.post('/api/test', async (req, res) => {
   try {
-    const { apiUrl, httpMethod = 'GET', requestHeaders = {}, requestBody = null } = req.body;
+    const { apiUrl, httpMethod = 'GET', requestHeaders = {}, requestBody = null, disableSSLVerify = true } = req.body;
 
     if (!apiUrl) {
       return res.status(400).json({
         success: false,
         message: 'apiUrl is required'
+      });
+    }
+
+    // Validate URL format
+    try {
+      new URL(apiUrl);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid URL format. Must start with http:// or https://'
       });
     }
 
@@ -88,7 +98,9 @@ app.post('/api/test', async (req, res) => {
         headers: requestHeaders,
         data: requestBody,
         timeout: API_TIMEOUT,
-        validateStatus: () => true // Accept all status codes
+        validateStatus: () => true, // Accept all status codes
+        httpsAgent: { rejectUnauthorized: disableSSLVerify ? false : true },
+        httpAgent: { rejectUnauthorized: disableSSLVerify ? false : true }
       });
 
       const responseTime = Date.now() - startTime;
@@ -116,6 +128,18 @@ app.post('/api/test', async (req, res) => {
     } catch (error) {
       const responseTime = Date.now() - startTime;
 
+      // Generate user-friendly error messages
+      let userFriendlyMessage = error.message;
+      if (error.code === 'ECONNREFUSED') {
+        userFriendlyMessage = 'Connection refused - The API server may be down or unreachable';
+      } else if (error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+        userFriendlyMessage = 'Connection timeout - The API is not responding. Check the URL and try again.';
+      } else if (error.message.includes('certificate')) {
+        userFriendlyMessage = 'SSL certificate error - The API has certificate issues. This is a known issue with some test APIs.';
+      } else if (error.message.includes('ENOTFOUND')) {
+        userFriendlyMessage = 'Domain not found - Please check the URL is correct';
+      }
+
       const result = {
         _id: String(sessionData.testResults.length + 1),
         apiUrl,
@@ -124,7 +148,8 @@ app.post('/api/test', async (req, res) => {
         responseTime,
         isSlowAPI: true,
         timestamp: new Date(),
-        error: error.message
+        error: userFriendlyMessage,
+        errorCode: error.code || 'UNKNOWN'
       };
 
       sessionData.testResults.push(result);
@@ -132,13 +157,13 @@ app.post('/api/test', async (req, res) => {
       res.status(400).json({
         success: false,
         data: result,
-        message: `API test failed: ${error.message}`
+        message: `API test failed: ${userFriendlyMessage}`
       });
     }
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error testing API',
+      message: 'Error testing API - Please check the URL and try again',
       error: error.message
     });
   }
