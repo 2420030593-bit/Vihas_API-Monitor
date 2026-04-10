@@ -1,0 +1,102 @@
+# ====================================
+# Environment & Configuration
+# ====================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# ====================================
+# Dependencies
+# ====================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+package-lock.json
+yarn.lock
+
+# ====================================
+# Build & Generated Files
+# ====================================
+build/
+dist/
+out/
+.next/
+.nuxt/
+*.min.js
+*.min.css
+
+# ====================================
+# IDE & Editor
+# ====================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.vim
+
+# ====================================
+# OS Files
+# ====================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ====================================
+# Runtime & Temporary Files
+# ====================================
+.env.*
+*.log
+logs/
+tmp/
+temp/
+.cache/
+.turbo/
+
+# ====================================
+# Testing
+# ====================================
+coverage/
+.nyc_output/
+*.coverage
+
+# ====================================
+# Database
+# ====================================
+*.sqlite
+*.sqlite3
+*.db
+db_output.json
+
+# ====================================
+# Frontend
+# ====================================
+frontend/build/
+frontend/node_modules/
+
+# ====================================
+# Backend
+# ====================================
+backend/node_modules/
+backend/.env
+
+# ====================================
+# Custom
+# ====================================
+.vercel
+.output
+dist-ssr
+*.local

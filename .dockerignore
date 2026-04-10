@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+.DS_Store
+
+# Build
+build
+dist
+coverage
+
+# Testing
+.nyc_output
+.jest_cache
+
+# Misc
+logs
+*.log
+tmp
+temp

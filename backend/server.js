@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const https = require('https');
+const http = require('http');
 
 const app = express();
 
@@ -92,6 +94,12 @@ app.post('/api/test', async (req, res) => {
     const startTime = Date.now();
     
     try {
+      // Create proper agent instances
+      const httpsAgent = new https.Agent({
+        rejectUnauthorized: !disableSSLVerify
+      });
+      const httpAgent = new http.Agent();
+
       const response = await axios({
         method: httpMethod,
         url: apiUrl,
@@ -99,8 +107,8 @@ app.post('/api/test', async (req, res) => {
         data: requestBody,
         timeout: API_TIMEOUT,
         validateStatus: () => true, // Accept all status codes
-        httpsAgent: { rejectUnauthorized: disableSSLVerify ? false : true },
-        httpAgent: { rejectUnauthorized: disableSSLVerify ? false : true }
+        httpsAgent: httpsAgent,
+        httpAgent: httpAgent
       });
 
       const responseTime = Date.now() - startTime;
