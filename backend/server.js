@@ -287,19 +287,71 @@ app.post('/api/cleanup', (req, res) => {
 app.get('/api/session/metrics', (req, res) => {
   const totalTests = sessionData.testResults.length;
   const slowAPIs = sessionData.testResults.filter(r => r.isSlowAPI).length;
+  const successfulTests = sessionData.testResults.filter(r => r.responseStatus >= 200 && r.responseStatus < 300).length;
+  const successRate = totalTests > 0 ? Math.round((successfulTests / totalTests) * 100) : 0;
   const avgResponseTime = totalTests > 0 
     ? Math.round(sessionData.testResults.reduce((sum, r) => sum + r.responseTime, 0) / totalTests)
     : 0;
 
-  const uniqueAPIs = [...new Set(sessionData.testResults.map(r => r.apiUrl))].length;
+  // Build trend data (last 20 tests)
+  const trend = sessionData.testResults.slice(-20).map((r, idx) => ({
+    testNum: idx + 1,
+    latency: r.responseTime,
+    isError: r.responseStatus < 200 || r.responseStatus >= 400
+  }));
+
+  // Build status distribution
+  const statusDistribution = {};
+  sessionData.testResults.forEach(r => {
+    const status = r.responseStatus || 'Error';
+    statusDistribution[status] = (statusDistribution[status] || 0) + 1;
+  });
+
+  // Build slow endpoints list (group by API URL and show slowest ones)
+  const apiMetrics = {};
+  sessionData.testResults.forEach(r => {
+    if (!apiMetrics[r.apiUrl]) {
+      apiMetrics[r.apiUrl] = {
+        apiUrl: r.apiUrl,
+        httpMethod: r.httpMethod,
+        totalTests: 0,
+        slowCount: 0,
+        avgResponseTime: 0,
+        maxResponseTime: 0,
+        responseTimes: []
+      };
+    }
+    apiMetrics[r.apiUrl].totalTests++;
+    apiMetrics[r.apiUrl].responseTimes.push(r.responseTime);
+    if (r.isSlowAPI) {
+      apiMetrics[r.apiUrl].slowCount++;
+    }
+    apiMetrics[r.apiUrl].maxResponseTime = Math.max(apiMetrics[r.apiUrl].maxResponseTime, r.responseTime);
+  });
+
+  // Calculate averages and sort
+  const slowEndpoints = Object.values(apiMetrics)
+    .map(api => ({
+      ...api,
+      avgResponseTime: Math.round(api.responseTimes.reduce((a, b) => a + b, 0) / api.responseTimes.length)
+    }))
+    .sort((a, b) => b.avgResponseTime - a.avgResponseTime)
+    .slice(0, 10)
+    .map(({ responseTimes, ...rest }) => rest); // Remove responseTimes array
+
+  const uniqueAPIs = Object.keys(apiMetrics).length;
 
   res.json({
     success: true,
     data: {
       totalTests,
-      slowAPIs,
+      slowApis: slowAPIs,
       avgResponseTime,
+      successRate,
       uniqueAPIs,
+      trend,
+      statusDistribution,
+      slowEndpoints,
       sessionStart: sessionData.sessionStart,
       uptime: process.uptime()
     }

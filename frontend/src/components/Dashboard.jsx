@@ -25,13 +25,13 @@ const Dashboard = () => {
   const fetchMetrics = async () => {
     try {
       const res = await axios.get(`${API_URL}/session/metrics`);
-      setData(res.data);
+      setData(res.data.data); // Extract the nested data property
       setError(null);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch session metrics');
     } finally {
-      if(loading) setLoading(false);
+      setLoading(false);
     }
   };
 
