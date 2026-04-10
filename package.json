@@ -1,0 +1,37 @@
+{
+  "name": "api-performance-monitor",
+  "version": "1.0.0",
+  "description": "Full-stack API Performance Monitoring Application",
+  "main": "backend/server.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "install-all": "npm ci && cd backend && npm ci && cd ../frontend && npm ci && cd ..",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm ci",
+    "build:frontend": "cd frontend && npm ci && npm run build",
+    "start": "cd backend && npm start",
+    "start:prod": "NODE_ENV=production node backend/server.js",
+    "test": "echo 'Tests configured in backend and frontend'",
+    "lint": "echo 'Add linter configuration'",
+    "render-build": "bash build.sh"
+  },
+  "keywords": [
+    "api",
+    "performance",
+    "monitoring",
+    "testing",
+    "rendering"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
