@@ -137,16 +137,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/', apiRoutes);
 
-// Serve frontend in production
-if (NODE_ENV === 'production') {
-  const frontendBuildPath = path.join(__dirname, '../frontend/build');
-  app.use(express.static(frontendBuildPath));
-  
-  // Serve index.html for SPA routes
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendBuildPath, 'index.html'));
-  });
-}
+
 
 // =============================================
 // Error Handling
