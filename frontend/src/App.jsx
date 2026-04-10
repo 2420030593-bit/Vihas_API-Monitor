@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import ApiTester from './components/ApiTester';
-import Dashboard from './components/Dashboard';
 import History from './components/History';
 import Performance from './components/Performance';
 import './App.css';
@@ -14,7 +13,6 @@ function App() {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
     { id: 'tester', label: 'API Tester', icon: 'api' },
     { id: 'history', label: 'Test History', icon: 'history' },
     { id: 'performance', label: 'Performance', icon: 'insights' },
@@ -66,7 +64,6 @@ function App() {
       {/* Main Content */}
       <main className="ml-64 pt-16 min-h-screen bg-surface">
         {activeTab === 'tester' && <ApiTester onTestComplete={handleTestComplete} />}
-        {activeTab === 'dashboard' && <Dashboard key={refreshTrigger} />}
         {activeTab === 'history' && <History key={refreshTrigger} />}
         {activeTab === 'performance' && <Performance key={refreshTrigger} />}
       </main>
